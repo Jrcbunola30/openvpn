@@ -1,0 +1,54 @@
+aptopt='-o DPkg::Options::=--force-overwrite --allow-unauthenticated -o Acquire::ForceIPv4=true'
+
+Firewall(){
+ local T="$(mktemp)"
+ local PNET="$(ip -4 route ls | grep default | grep -Po '(?<=dev )(\S+)' | head -1)"
+ if [[ "$(command -v firewall-cmd)" ]]; then
+  apt remove --purge firewalld -yf
+  apt autoremove -yf
+ elif [[ "$(command -v ufw)" ]]; then
+  apt remove --purge ufw -yf
+ fi
+ apt install iptables-persistent -yf 
+ systemctl -q restart netfilter-persistent
+ systemctl -q enable netfilter-persistent
+ printf "%b\n" '#!/bin/bash' \
+ 'iptables -P INPUT ACCEPT' \
+ 'iptables -P FORWARD ACCEPT' \
+ 'iptables -P OUTPUT ACCEPT' \
+ 'iptables -t nat -F' \
+ 'iptables -t mangle -F' \
+ 'iptables -F' \
+ 'iptables -I INPUT -p udp --dport 5300 -j ACCEPT' \
+ 'iptables -t nat -I PREROUTING -i eth0 -p udp --dport 53 -j REDIRECT --to-ports 5300' \
+ 'iptables -A INPUT -s 0.0.0.0/0 -p tcp -m multiport --dport 1:65535 -j ACCEPT' \
+ 'iptables -A INPUT -s 0.0.0.0/0 -p udp -m multiport --dport 1:65535 -j ACCEPT' \
+ "iptables -I FORWARD -s 172.18.0.0/16 -j ACCEPT" \
+ "iptables -t nat -A POSTROUTING -s 172.18.0.0/16 -o ${PNET} -j MASQUERADE" \
+  "iptables -I FORWARD -s 172.19.0.0/16 -j ACCEPT" \
+ "iptables -t nat -A POSTROUTING -s 172.19.0.0/16 -o ${PNET} -j MASQUERADE" \
+ 'iptables -A INPUT -m string --algo bm --string "BitTorrent" -j REJECT' \
+'iptables -A INPUT -m string --algo bm --string "BitTorrent protocol" -j REJECT' \
+'iptables -A INPUT -m string --algo bm --string ".torrent" -j REJECT' \
+'iptables -A INPUT -m string --algo bm --string "torrent" -j REJECT' \
+'iptables -A INPUT -m string --string "BitTorrent" --algo kmp -j REJECT' \
+'iptables -A INPUT -m string --string "BitTorrent protocol" --algo kmp -j REJECT' \
+'iptables -A INPUT -m string --string "bittorrent-announce" --algo kmp -j REJECT' \
+'iptables -A FORWARD -m string --algo bm --string "BitTorrent" -j REJECT' \
+'iptables -A FORWARD -m string --algo bm --string "BitTorrent protocol" -j REJECT' \
+'iptables -A FORWARD -m string --algo bm --string ".torrent" -j REJECT' \
+'iptables -A FORWARD -m string --algo bm --string "torrent" -j REJECT' \
+'iptables -A FORWARD -m string --string "BitTorrent" --algo kmp -j REJECT' \
+'iptables -A FORWARD -m string --string "BitTorrent protocol" --algo kmp -j REJECT' \
+'iptables -A FORWARD -m string --string "bittorrent-announce" --algo kmp -j REJECT' \
+'iptables -A OUTPUT -m string --algo bm --string "BitTorrent" -j REJECT' \
+'iptables -A OUTPUT -m string --algo bm --string "BitTorrent protocol" -j REJECT' \
+'iptables -A OUTPUT -m string --algo bm --string ".torrent" -j REJECT' \
+'iptables -A OUTPUT -m string --algo bm --string "torrent" -j REJECT' \
+'iptables -A OUTPUT -m string --string "BitTorrent" --algo kmp -j REJECT' \
+'iptables -A OUTPUT -m string --string "BitTorrent protocol" --algo kmp -j REJECT' \
+'iptables -A OUTPUT -m string --string "bittorrent-announce" --algo kmp -j REJECT' \
+ 'iptables-save > /etc/iptables/rules.v4' > "${T}"
+ screen -S t -dm bash -c "bash ${T} && rm -f ${T}"
+}
+Firewall

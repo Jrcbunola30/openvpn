@@ -1,0 +1,15 @@
+echo -e "[\e[32mInfo\e[0m] Configuring Dropbear.."
+cat <<'EOFDropbear' > /etc/default/dropbear
+NO_START=0
+DROPBEAR_PORT=555
+DROPBEAR_EXTRA_ARGS="-p 550"
+DROPBEAR_BANNER="/etc/banner"
+DROPBEAR_RSAKEY="/etc/dropbear/dropbear_rsa_host_key"
+DROPBEAR_DSSKEY="/etc/dropbear/dropbear_dss_host_key"
+DROPBEAR_ECDSAKEY="/etc/dropbear/dropbear_ecdsa_host_key"
+DROPBEAR_RECEIVE_WINDOW=65536
+EOFDropbear
+
+echo -e "[\e[33mNotice\e[0m] Restarting Dropbear Service.."
+systemctl enable dropbear &>/dev/null
+systemctl restart dropbear &>/dev/null

@@ -1,0 +1,14 @@
+apt install nginx -y
+rm -rf /etc/nginx/sites-*
+
+cat <<'myNginxC' > /etc/nginx/conf.d/ovpn-config.conf
+
+server {
+ listen 0.0.0.0:86;
+ server_name localhost;
+ root /etc/openvpn/configs;
+ index index.html;
+}
+myNginxC
+
+systemctl restart nginx

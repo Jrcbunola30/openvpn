@@ -1,0 +1,45 @@
+Create_DNS(){
+ printf "%b\n" "[\e[32mInfo\e[0m]\e[97m running DNS Maker..\e[0m"
+ GLOBAL_API_KEY="a3c350a367192bad8e0e90d456aad9d732afd"
+ CLOUDFLARE_EMAIL="bunolajrc1989@gmail.com"
+ DOMAIN_NAME_TLD="privatessh.tech"
+ DOMAIN_ZONE_ID="fdd2f1692bcf6c068f569652b26c3252"
+
+ C2ISO="$(curl -4skL https://ipinfo.io/country)"
+ COUNTER="$(head /dev/urandom | tr -dc 'a-f0-9' | fold -w 4 | head -n1)"
+
+ function ip_address(){
+  local IP="$( ip addr | egrep -o '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | egrep -v "^192\.168|^172\.1[6-9]\.|^172\.2[0-9]\.|^172\.3[0-2]\.|^10\.|^127\.|^255\.|^0\." | head -n 1 )"
+  [ -z "${IP}" ] && IP="$( wget -qO- -t1 -T2 ipv4.icanhazip.com )"
+  [ -z "${IP}" ] && IP="$( wget -qO- -t1 -T2 ipinfo.io/ip )"
+  [ ! -z "${IP}" ] && echo "${IP}" || echo
+} 
+IPADDR="$(ip_address)"
+
+ declare -g -l A_RECORD="${C2ISO}${COUNTER}.${DOMAIN_NAME_TLD}"
+ declare -g -l ACDN_RECORD="${C2ISO}${COUNTER}.ws.${DOMAIN_NAME_TLD}"
+ declare -g -l NS_RECORD="dns.${C2ISO}${COUNTER}.${DOMAIN_NAME_TLD}"
+
+ declare -a DNSN=("${A_RECORD}" "${ACDN_RECORD}" "${NS_RECORD}")
+ declare -a DNST=('A' 'A' 'NS')
+ declare -a DNSC=("$(ip_address)" "$(ip_address)" "${A_RECORD}")
+ declare -a DNSP=('false' 'false' 'false')
+ declare -a DNSL=('1' '1' '1')
+ #local len="${#DNSN[*]}"; #i<${len}
+
+ for ((i=0; i<3; i++)); do
+  printf "%b\n" "[\e[32mInfo\e[0m]\e[97m Creating record: ${DNSN[$i]}\e[0m"
+  curl -sX POST "https://api.cloudflare.com/client/v4/zones/${DOMAIN_ZONE_ID}/dns_records" \
+-H "X-Auth-Email: $CLOUDFLARE_EMAIL" \
+-H "X-Auth-Key: $GLOBAL_API_KEY" \
+-H "Content-Type: application/json" \
+--data "{\"type\":\"${DNST[$i]}\",\"name\":\"${DNSN[$i]}\",\"content\":\"${DNSC[$i]}\",\"ttl\":${DNSL[$i]},\"proxied\":${DNSP[$i]}}" &>/dev/null
+  sleep 3
+done
+
+mkdir -p /etc/dnsinfo
+echo "${A_RECORD}" > /etc/dnsinfo/cdn.txt
+echo "${ACDN_RECORD}" > /etc/dnsinfo/websocket_cdn.txt
+
+}
+Create_DNS
